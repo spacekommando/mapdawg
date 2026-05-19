@@ -1,4 +1,4 @@
-# GeoPDF Navigator
+# Mapdawg Navigator
 
 A Progressive Web App (PWA) for viewing georeferenced PDF maps with live GPS overlay and GPX track recording.
 
