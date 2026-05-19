@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#1a2332" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <title>GeoPDF Navigator</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+  <!-- ── SPLASH / LOAD SCREEN ── -->
+  <div id="splash" class="screen active">
+    <div class="splash-inner">
+      <div class="splash-icon">🗺️</div>
+      <h1>GeoPDF Navigator</h1>
+      <p class="splash-sub">Georeferenced PDF map viewer with live GPS</p>
+      <button id="btn-load-map" class="btn btn-primary btn-large">
+        <span class="btn-icon">📂</span> Load Map
+      </button>
+      <input type="file" id="file-input" accept=".pdf" style="display:none" />
+      <p class="splash-hint">Supports georeferenced PDFs (VP/GPTS format)</p>
+    </div>
+  </div>
+
+  <!-- ── PAGE PICKER MODAL ── -->
+  <div id="modal-page-picker" class="modal hidden">
+    <div class="modal-box">
+      <h2>Select Map Page</h2>
+      <p>This PDF has multiple pages. Which page contains the map?</p>
+      <div id="page-picker-list" class="page-list"></div>
+      <button class="btn btn-secondary" id="btn-cancel-page">Cancel</button>
+    </div>
+  </div>
+
+  <!-- ── ERROR MODAL ── -->
+  <div id="modal-error" class="modal hidden">
+    <div class="modal-box">
+      <h2 id="error-title">⚠️ Error</h2>
+      <p id="error-body"></p>
+      <button class="btn btn-secondary" id="btn-dismiss-error">OK</button>
+    </div>
+  </div>
+
+  <!-- ── TRACK NAME MODAL ── -->
+  <div id="modal-track-name" class="modal hidden">
+    <div class="modal-box">
+      <h2>Save Track</h2>
+      <label for="track-name-input">Track name</label>
+      <input type="text" id="track-name-input" class="text-input" placeholder="My hike" maxlength="60" />
+      <label for="track-desc-input">Description (optional)</label>
+      <input type="text" id="track-desc-input" class="text-input" placeholder="Notes about this track" maxlength="120" />
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="btn-cancel-save">Cancel</button>
+        <button class="btn btn-primary" id="btn-confirm-save">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── MAIN MAP SCREEN ── -->
+  <div id="map-screen" class="screen hidden">
+
+    <!-- Canvas layer -->
+    <canvas id="map-canvas"></canvas>
+
+    <!-- Top bar -->
+    <div id="top-bar">
+      <button id="btn-back" class="icon-btn" title="Load new map">←</button>
+      <div id="map-title" class="map-title">Map</div>
+      <div id="accuracy-badge" class="accuracy-badge acc-none" title="GPS accuracy">
+        <span id="accuracy-icon">📡</span>
+        <span id="accuracy-text">--</span>
+      </div>
+    </div>
+
+    <!-- Right controls -->
+    <div id="right-controls">
+      <button id="btn-follow" class="icon-btn follow-btn" title="Follow mode: Off" data-mode="0">
+        <span id="follow-icon">🔓</span>
+      </button>
+      <button id="btn-zoom-in" class="icon-btn" title="Zoom in">+</button>
+      <button id="btn-zoom-out" class="icon-btn" title="Zoom out">−</button>
+    </div>
+
+    <!-- Bottom recording bar -->
+    <div id="recording-bar">
+      <div id="rec-status" class="rec-status">
+        <span id="rec-indicator" class="rec-dot idle"></span>
+        <span id="rec-label">Not recording</span>
+      </div>
+      <div id="rec-stats" class="rec-stats hidden">
+        <span id="rec-distance">0.00 mi</span>
+        <span id="rec-points">0 pts</span>
+        <span id="rec-duration">0:00</span>
+      </div>
+      <div id="rec-controls" class="rec-controls">
+        <button id="btn-start-rec" class="btn btn-rec">⏺ Start</button>
+        <button id="btn-pause-rec" class="btn btn-warn hidden">⏸ Pause</button>
+        <button id="btn-resume-rec" class="btn btn-rec hidden">▶ Resume</button>
+        <button id="btn-stop-rec" class="btn btn-danger hidden">⏹ Stop</button>
+      </div>
+      <button id="btn-tracks" class="btn btn-secondary btn-small">📋 Tracks</button>
+    </div>
+
+  </div>
+
+  <!-- ── TRACKS PANEL ── -->
+  <div id="tracks-panel" class="panel hidden">
+    <div class="panel-header">
+      <h2>Saved Tracks</h2>
+      <button id="btn-close-tracks" class="icon-btn">✕</button>
+    </div>
+    <div id="tracks-list" class="tracks-list">
+      <p class="empty-msg">No saved tracks yet.</p>
+    </div>
+  </div>
+
+  <!-- PDF.js from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    // Set worker path
+    if (typeof pdfjsLib !== 'undefined') {
+      pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+  </script>
+
+  <!-- App modules -->
+  <script src="js/gpx-export.js"></script>
+  <script src="js/gps.js"></script>
+  <script src="js/pdf-parser.js"></script>
+  <script src="js/app.js"></script>
+
+</body>
+</html>
