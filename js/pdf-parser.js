@@ -28,7 +28,7 @@ const PdfParser = (() => {
   async function loadPdf(file) {
     const arrayBuffer = await file.arrayBuffer();
     window._lastLoadedPdfBuffer = arrayBuffer;
-    const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
     return { pdfDoc, pageCount: pdfDoc.numPages, filename: file.name };
   }
 
