@@ -471,7 +471,7 @@
       { lat: tr.lat, lon: tr.lon }
     );
     if (geoDist === 0) return 20;
-    return (meters / geoDist) * pixelDist * viewScale;
+    return (meters / geoDist) * pixelDist * pdfRenderScale * viewScale;
   }
 
   // ── GPS callbacks ─────────────────────────────────────────────────────────
@@ -480,7 +480,8 @@
     gpsPosition = pos;
 
     if (geoRef) {
-      posPixel = PdfParser.gpsToPixel(geoRef, pos.lat, pos.lon, 1);
+      const raw = PdfParser.gpsToPixel(geoRef, pos.lat, pos.lon);
+      posPixel = raw ? { x: raw.x * pdfRenderScale, y: raw.y * pdfRenderScale } : null;
     }
 
     // Follow mode: auto-pan
