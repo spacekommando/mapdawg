@@ -19,6 +19,7 @@ const GPS = (() => {
   const RECORD_INTERVAL   = 3;   // seconds between track points minimum
   const STORAGE_KEY_LIVE  = 'geopdf_live_track';
   const STORAGE_KEY_SAVED = 'geopdf_saved_tracks';
+  const STORAGE_KEY_PLACEMARKS = 'geopdf_placemarks';
 
   // ── State ─────────────────────────────────────────────────────────────────
   let _watchId        = null;
@@ -180,6 +181,53 @@ const GPS = (() => {
     localStorage.setItem(STORAGE_KEY_SAVED, JSON.stringify(tracks));
   }
 
+  // ── Placemarks (localStorage) ─────────────────────────────────────────────
+
+  /** Save a new placemark. Returns the saved object (with id). */
+  function savePlacemark(pm) {
+    const placemarks = loadPlacemarks();
+    const saved = {
+      id:        'pin_' + Date.now(),
+      name:      pm.name || 'Placemark',
+      note:      pm.note || '',
+      lat:       pm.lat,
+      lon:       pm.lon,
+      mapName:   pm.mapName || '',
+      createdAt: Date.now(),
+    };
+    placemarks.unshift(saved);
+    try {
+      localStorage.setItem(STORAGE_KEY_PLACEMARKS, JSON.stringify(placemarks));
+    } catch (e) {
+      console.warn('GPS: Could not save placemark to localStorage', e);
+    }
+    return saved;
+  }
+
+  /** Load all saved placemarks from localStorage. */
+  function loadPlacemarks() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_PLACEMARKS);
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  }
+
+  /** Delete a placemark by ID. */
+  function deletePlacemark(id) {
+    const placemarks = loadPlacemarks().filter(p => p.id !== id);
+    localStorage.setItem(STORAGE_KEY_PLACEMARKS, JSON.stringify(placemarks));
+  }
+
+  /** Update an existing placemark's name/note. */
+  function updatePlacemark(id, updates) {
+    const placemarks = loadPlacemarks();
+    const idx = placemarks.findIndex(p => p.id === id);
+    if (idx === -1) return null;
+    placemarks[idx] = { ...placemarks[idx], ...updates };
+    localStorage.setItem(STORAGE_KEY_PLACEMARKS, JSON.stringify(placemarks));
+    return placemarks[idx];
+  }
+
   // ── Utility ───────────────────────────────────────────────────────────────
 
   /** Haversine distance between two {lat,lon} points in meters. */
@@ -330,6 +378,10 @@ const GPS = (() => {
     saveTrack,
     loadSavedTracks,
     deleteTrack,
+    savePlacemark,
+    loadPlacemarks,
+    deletePlacemark,
+    updatePlacemark,
     haversineDistance,
     metersToMiles,
     formatDuration,
