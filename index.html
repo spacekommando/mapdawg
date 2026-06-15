@@ -60,6 +60,21 @@
     </div>
   </div>
 
+  <!-- ── PLACEMARK NAME MODAL ── -->
+  <div id="modal-placemark" class="modal hidden">
+    <div class="modal-box">
+      <h2>New Placemark</h2>
+      <label for="placemark-name-input">Name</label>
+      <input type="text" id="placemark-name-input" class="text-input" placeholder="Trailhead" maxlength="60" />
+      <label for="placemark-note-input">Note (optional)</label>
+      <input type="text" id="placemark-note-input" class="text-input" placeholder="Notes about this spot" maxlength="120" />
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="btn-cancel-placemark">Cancel</button>
+        <button class="btn btn-primary" id="btn-confirm-placemark">Save</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ── MAIN MAP SCREEN ── -->
   <div id="map-screen" class="screen hidden">
 
@@ -83,6 +98,8 @@
       </button>
       <button id="btn-zoom-in" class="icon-btn" title="Zoom in">+</button>
       <button id="btn-zoom-out" class="icon-btn" title="Zoom out">−</button>
+      <button id="btn-add-pin" class="icon-btn" title="Drop placemark at map center">📍</button>
+      <button id="btn-places" class="icon-btn" title="Saved places">📋</button>
     </div>
 
     <!-- Bottom recording bar -->
@@ -115,6 +132,17 @@
     </div>
     <div id="tracks-list" class="tracks-list">
       <p class="empty-msg">No saved tracks yet.</p>
+    </div>
+  </div>
+
+  <!-- ── PLACES PANEL ── -->
+  <div id="places-panel" class="panel hidden">
+    <div class="panel-header">
+      <h2>Saved Places</h2>
+      <button id="btn-close-places" class="icon-btn">✕</button>
+    </div>
+    <div id="places-list" class="tracks-list">
+      <p class="empty-msg">No saved places yet.</p>
     </div>
   </div>
 
