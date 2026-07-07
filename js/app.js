@@ -37,8 +37,9 @@
   const followIcon     = document.getElementById('follow-icon');
   const btnZoomIn      = document.getElementById('btn-zoom-in');
   const btnZoomOut     = document.getElementById('btn-zoom-out');
-  const btnAddPin      = document.getElementById('btn-add-pin');
-  const btnPlaces      = document.getElementById('btn-places');
+  const btnCrosshair   = document.getElementById('btn-crosshair');
+  const coordPill      = document.getElementById('coord-pill');
+  const coordText      = document.getElementById('coord-text');
 
   const recIndicator   = document.getElementById('rec-indicator');
   const recLabel       = document.getElementById('rec-label');
@@ -67,16 +68,6 @@
   const btnCancelSave    = document.getElementById('btn-cancel-save');
   const btnConfirmSave   = document.getElementById('btn-confirm-save');
 
-  const modalPlacemark      = document.getElementById('modal-placemark');
-  const placemarkNameInput  = document.getElementById('placemark-name-input');
-  const placemarkNoteInput  = document.getElementById('placemark-note-input');
-  const btnCancelPlacemark  = document.getElementById('btn-cancel-placemark');
-  const btnConfirmPlacemark = document.getElementById('btn-confirm-placemark');
-
-  const placesPanel    = document.getElementById('places-panel');
-  const placesList     = document.getElementById('places-list');
-  const btnClosePlaces = document.getElementById('btn-close-places');
-
   const tracksPanel      = document.getElementById('tracks-panel');
   const tracksList       = document.getElementById('tracks-list');
   const btnCloseTracks   = document.getElementById('btn-close-tracks');
@@ -104,6 +95,11 @@
   let gpsPosition  = null;         // last known {lat, lon, heading, accuracy}
   let posPixel     = null;         // last computed {x, y} on offCanvas
 
+  // Crosshair coordinate readout
+  let crosshairOn      = false;
+  let _lastCoordString = '';
+  let _copyFlashTimer  = null;
+
   // Follow mode: 0=free, 1=north-up locked, 2=heading-up locked
   let followMode   = 0;
   const FOLLOW_ICONS = ['🔓', '🔒⬆️', '🔒🧭'];
@@ -122,10 +118,6 @@
 
   // Current filename for GPX metadata
   let currentMapName = '';
-
-  // Placemarks for the current map (cached, refreshed from storage)
-  let placemarks  = [];
-  let _pendingPlacemark = null; // {lat, lon} awaiting name confirmation
 
   // ── Init ──────────────────────────────────────────────────────────────────
 
@@ -157,6 +149,8 @@
   btnFollow.addEventListener('click', cycleFollowMode);
   btnZoomIn.addEventListener('click', () => zoomBy(1.3));
   btnZoomOut.addEventListener('click', () => zoomBy(1 / 1.3));
+  btnCrosshair.addEventListener('click', toggleCrosshair);
+  coordPill.addEventListener('click', copyCrosshairCoords);
 
   btnStartRec.addEventListener('click',  onStartRecording);
   btnPauseRec.addEventListener('click',  onPauseRecording);
@@ -165,16 +159,6 @@
 
   btnTracks.addEventListener('click',      openTracksPanel);
   btnCloseTracks.addEventListener('click', closeTracksPanel);
-
-  btnAddPin.addEventListener('click', onAddPlacemark);
-  btnPlaces.addEventListener('click', openPlacesPanel);
-  btnClosePlaces.addEventListener('click', closePlacesPanel);
-
-  btnCancelPlacemark.addEventListener('click', () => {
-    _pendingPlacemark = null;
-    hideModal(modalPlacemark);
-  });
-  btnConfirmPlacemark.addEventListener('click', onConfirmPlacemark);
 
   btnCancelPage.addEventListener('click',   () => hideModal(modalPagePicker));
   btnDismissError.addEventListener('click', () => hideModal(modalError));
@@ -328,7 +312,6 @@
       await renderPdf();
       showMapScreen();
       GPS.startWatching();
-      loadPlacemarksForMap();
 
     } catch (err) {
       console.error('Page load error:', err);
@@ -407,17 +390,6 @@
     // Draw PDF map
     ctx.drawImage(offCanvas, viewX, viewY, offCanvas.width * viewScale, offCanvas.height * viewScale);
 
-    // Draw placemarks
-    if (geoRef && placemarks.length) {
-      for (const pm of placemarks) {
-        const raw = PdfParser.gpsToPixel(geoRef, pm.lat, pm.lon);
-        if (!raw) continue;
-        const px = raw.x * pdfRenderScale * viewScale + viewX;
-        const py = raw.y * pdfRenderScale * viewScale + viewY;
-        _drawPlacemark(px, py, pm.name);
-      }
-    }
-
     // Draw GPS position
     if (gpsPosition && posPixel) {
       _drawGpsDot(posPixel.x * viewScale + viewX, posPixel.y * viewScale + viewY, gpsPosition.heading);
@@ -427,17 +399,11 @@
 
     ctx.restore();
 
-    // Center crosshair (helps with placemark placement)
-    if (geoRef) {
-      const ccx = canvas.width / 2, ccy = canvas.height / 2;
-      ctx.save();
-      ctx.strokeStyle = 'rgba(232,237,245,0.35)';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(ccx - 8, ccy); ctx.lineTo(ccx + 8, ccy);
-      ctx.moveTo(ccx, ccy - 8); ctx.lineTo(ccx, ccy + 8);
-      ctx.stroke();
-      ctx.restore();
+    // Crosshair overlay — drawn after restore so it stays screen-aligned
+    // even in heading-up mode (screen center is invariant under rotation)
+    if (crosshairOn) {
+      _drawCrosshair();
+      _updateCoordReadout();
     }
   }
 
@@ -447,45 +413,6 @@
       return -(gpsPosition.heading * Math.PI / 180);
     }
     return 0;
-  }
-
-  /**
-   * Draw a placemark pin at screen coordinates, with label.
-   */
-  function _drawPlacemark(screenX, screenY, label) {
-    const r = 7;
-
-    // Pin teardrop: circle + pointer
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(screenX, screenY - r, r, Math.PI * 0.2, Math.PI * 0.8, true);
-    ctx.lineTo(screenX, screenY + r * 1.4);
-    ctx.closePath();
-    ctx.fillStyle = '#f5a623';
-    ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
-    ctx.lineWidth = 1;
-    ctx.stroke();
-
-    // Center dot
-    ctx.beginPath();
-    ctx.arc(screenX, screenY - r, r * 0.4, 0, Math.PI * 2);
-    ctx.fillStyle = '#0e1520';
-    ctx.fill();
-    ctx.restore();
-
-    // Label
-    if (label) {
-      ctx.save();
-      ctx.font = '12px "Courier New", monospace';
-      ctx.fillStyle = '#e8edf5';
-      ctx.strokeStyle = 'rgba(14,21,32,0.9)';
-      ctx.lineWidth = 3;
-      ctx.textAlign = 'center';
-      ctx.strokeText(label, screenX, screenY - r * 2 - 4);
-      ctx.fillText(label, screenX, screenY - r * 2 - 4);
-      ctx.restore();
-    }
   }
 
   function _drawGpsDot(screenX, screenY, heading) {
@@ -562,6 +489,117 @@
     );
     if (geoDist === 0) return 20;
     return (meters / geoDist) * pixelDist * pdfRenderScale * viewScale;
+  }
+
+  // ── Crosshair coordinate readout ──────────────────────────────────────────
+
+  function toggleCrosshair() {
+    crosshairOn = !crosshairOn;
+    btnCrosshair.classList.toggle('active', crosshairOn);
+    coordPill.classList.toggle('hidden', !crosshairOn);
+    _lastCoordString = '';
+    needsRedraw = true;
+  }
+
+  /** Avenza-style reticle at screen center: circle + four tick marks. */
+  function _drawCrosshair() {
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const rIn  = 11;   // circle radius
+    const tick = 9;    // tick length beyond circle
+
+    ctx.save();
+    ctx.lineWidth   = 2.5;
+    ctx.strokeStyle = 'rgba(14,21,32,0.9)';
+    ctx.shadowColor = 'rgba(255,255,255,0.6)';
+    ctx.shadowBlur  = 2;
+
+    // Circle
+    ctx.beginPath();
+    ctx.arc(cx, cy, rIn, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Ticks (N/S/E/W)
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - rIn - tick); ctx.lineTo(cx, cy - rIn + 3);
+    ctx.moveTo(cx, cy + rIn + tick); ctx.lineTo(cx, cy + rIn - 3);
+    ctx.moveTo(cx - rIn - tick, cy); ctx.lineTo(cx - rIn + 3, cy);
+    ctx.moveTo(cx + rIn + tick, cy); ctx.lineTo(cx + rIn - 3, cy);
+    ctx.stroke();
+
+    // Center dot
+    ctx.shadowBlur = 0;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 2, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(14,21,32,0.95)';
+    ctx.fill();
+    ctx.restore();
+  }
+
+  /**
+   * Compute lat/lon under the screen-center crosshair and update the pill.
+   * Screen → offCanvas px → PDF-point px (÷ pdfRenderScale) → pixelToGps.
+   * Rotation (heading-up) can be ignored: it pivots around screen center,
+   * so the center point maps to the same map location either way.
+   */
+  function _updateCoordReadout() {
+    if (_copyFlashTimer) return; // don't overwrite the "Copied" flash
+
+    let str = 'no georef';
+    if (geoRef && offCanvas) {
+      const mapX = (canvas.width  / 2 - viewX) / viewScale / pdfRenderScale;
+      const mapY = (canvas.height / 2 - viewY) / viewScale / pdfRenderScale;
+      const gps  = _pixelToGpsChecked(mapX, mapY);
+      str = gps ? `${gps.lat.toFixed(5)}, ${gps.lon.toFixed(5)}` : 'off map';
+    }
+
+    if (str !== _lastCoordString) {
+      _lastCoordString = str;
+      coordText.textContent = str;
+    }
+  }
+
+  /** pixelToGps, but returns null when the point is outside the map bounds. */
+  function _pixelToGpsChecked(x, y) {
+    const c = geoRef.corners;
+    if (!c || c.length < 4) return null;
+    const pxs = c.map(p => p.px), pys = c.map(p => p.py);
+    if (x < Math.min(...pxs) || x > Math.max(...pxs) ||
+        y < Math.min(...pys) || y > Math.max(...pys)) return null;
+    return PdfParser.pixelToGps(geoRef, x, y);
+  }
+
+  async function copyCrosshairCoords() {
+    const str = _lastCoordString;
+    if (!/-?\d/.test(str)) return; // nothing coordinate-like to copy
+
+    let ok = false;
+    try {
+      await navigator.clipboard.writeText(str);
+      ok = true;
+    } catch {
+      // Fallback for older browsers / non-secure contexts
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = str;
+        ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        ok = document.execCommand('copy');
+        document.body.removeChild(ta);
+      } catch { /* ignore */ }
+    }
+
+    // Flash feedback, then restore readout
+    coordText.textContent = ok ? '✓ Copied' : 'Copy failed';
+    coordPill.classList.add('copied');
+    clearTimeout(_copyFlashTimer);
+    _copyFlashTimer = setTimeout(() => {
+      _copyFlashTimer = null;
+      coordPill.classList.remove('copied');
+      _lastCoordString = '';   // force refresh
+      needsRedraw = true;
+    }, 900);
   }
 
   // ── GPS callbacks ─────────────────────────────────────────────────────────
@@ -726,112 +764,6 @@
     if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
   }
 
-  // ── Placemarks ────────────────────────────────────────────────────────────
-
-  function loadPlacemarksForMap() {
-    placemarks = GPS.loadPlacemarks().filter(p => p.mapName === currentMapName);
-    needsRedraw = true;
-  }
-
-  /**
-   * Drop a placemark at the current center of the screen.
-   * Converts the screen center -> offCanvas pixel -> GPS coords.
-   */
-  function onAddPlacemark() {
-    if (!geoRef) {
-      showError('No Georeference Data', 'This map has no georeference data, so placemarks cannot be placed.');
-      return;
-    }
-
-    const cx = canvas.width  / 2;
-    const cy = canvas.height / 2;
-
-    // Note: rotation (heading-up mode) is applied around the screen center,
-    // so the screen-center point always maps to the same offCanvas pixel
-    // regardless of rotation — no inverse-rotation needed here.
-    const offX = (cx - viewX) / viewScale;
-    const offY = (cy - viewY) / viewScale;
-
-    const gps = PdfParser.pixelToGps(geoRef, offX / pdfRenderScale, offY / pdfRenderScale);
-    if (!gps) {
-      showError('Out of Bounds', 'The map center is outside the georeferenced area.');
-      return;
-    }
-
-    _pendingPlacemark = { lat: gps.lat, lon: gps.lon };
-    placemarkNameInput.value = '';
-    placemarkNoteInput.value = '';
-    const count = GPS.loadPlacemarks().filter(p => p.mapName === currentMapName).length;
-    placemarkNameInput.placeholder = `Pin ${count + 1}`;
-    showModal(modalPlacemark);
-    placemarkNameInput.focus();
-  }
-
-  function onConfirmPlacemark() {
-    if (!_pendingPlacemark) { hideModal(modalPlacemark); return; }
-    const name = placemarkNameInput.value.trim() || placemarkNameInput.placeholder;
-    GPS.savePlacemark({
-      name,
-      note: placemarkNoteInput.value.trim(),
-      lat:  _pendingPlacemark.lat,
-      lon:  _pendingPlacemark.lon,
-      mapName: currentMapName,
-    });
-    _pendingPlacemark = null;
-    hideModal(modalPlacemark);
-    loadPlacemarksForMap();
-    renderPlacesList(); // refresh in case panel is open
-  }
-
-  function openPlacesPanel() {
-    renderPlacesList();
-    placesPanel.classList.remove('hidden');
-  }
-
-  function closePlacesPanel() {
-    placesPanel.classList.add('hidden');
-  }
-
-  function renderPlacesList() {
-    const all = GPS.loadPlacemarks();
-    if (all.length === 0) {
-      placesList.innerHTML = '<p class="empty-msg">No saved places yet.</p>';
-      return;
-    }
-
-    placesList.innerHTML = '';
-    all.forEach(pm => {
-      const card = document.createElement('div');
-      card.className = 'track-card';
-
-      const note = pm.note ? `<div class="track-card-desc">${_htmlEscape(pm.note)}</div>` : '';
-      const src  = pm.mapName ? `<span>📍 ${_htmlEscape(pm.mapName)}</span>` : '';
-
-      card.innerHTML = `
-        <div class="track-card-title">${_htmlEscape(pm.name)}</div>
-        <div class="track-card-meta">
-          <span>🧭 ${pm.lat.toFixed(5)}, ${pm.lon.toFixed(5)}</span>
-          ${src}
-        </div>
-        ${note}
-        <div class="track-card-actions">
-          <button class="btn btn-danger btn-small btn-delete-pin" data-id="${pm.id}">🗑 Delete</button>
-        </div>
-      `;
-
-      card.querySelector('.btn-delete-pin').addEventListener('click', e => {
-        e.stopPropagation();
-        if (confirm(`Delete "${pm.name}"?`)) {
-          GPS.deletePlacemark(pm.id);
-          if (pm.mapName === currentMapName) loadPlacemarksForMap();
-          renderPlacesList();
-        }
-      });
-
-      placesList.appendChild(card);
-    });
-  }
-
   // ── Tracks panel ──────────────────────────────────────────────────────────
 
   function openTracksPanel() {
@@ -911,8 +843,8 @@
     pdfDoc = null; geoRef = null; pdfPage = null;
     offCanvas = null; offCtx = null;
     gpsPosition = null; posPixel = null;
-    placemarks = [];
     followMode = 0; updateFollowButton();
+    if (crosshairOn) toggleCrosshair();
 
     mapScreen.classList.remove('active');
     mapScreen.classList.add('hidden');

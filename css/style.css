@@ -221,6 +221,39 @@ html, body {
   z-index: 10;
 }
 
+/* Crosshair button active state */
+#btn-crosshair.active {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: rgba(61,220,132,0.15);
+}
+
+/* ── Crosshair coordinate pill ── */
+.coord-pill {
+  position: absolute;
+  top: 60px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 7px 16px;
+  background: rgba(26,35,50,0.92);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s;
+}
+.coord-pill:active { border-color: var(--accent); }
+.coord-pill.copied { color: var(--text-primary); border-color: var(--accent); }
+
 /* Follow button states */
 .follow-btn[data-mode="0"] { color: var(--text-dim); }
 .follow-btn[data-mode="1"] { color: var(--acc-good); background: rgba(61,220,132,0.15); border-color: var(--acc-good); }

@@ -1,6 +1,6 @@
 {
-  "name": "GeoPDF Navigator",
-  "short_name": "GeoNav",
+  "name": "Mapdawg GDFnavigator",
+  "short_name": "Mapdawg",
   "description": "Georeferenced PDF map viewer with live GPS overlay and track recording",
   "start_url": "./index.html",
   "display": "standalone",

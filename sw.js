@@ -4,7 +4,7 @@
  * Map PDFs are NOT cached — they're loaded from device storage each time.
  */
 
-const CACHE_NAME = 'geopdf-navigator-v1';
+const CACHE_NAME = 'mapdawg-gdfnavigator-v2';
 const CACHE_URLS = [
   './',
   './index.html',
